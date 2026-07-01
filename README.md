@@ -65,9 +65,17 @@ The pipeline runs live at ~30 fps end to end: video replay → rectification →
 
 The depth map itself is visually noisy. This is a known, documented limitation: classical block-matching stereo (SGBM) performs poorly on low-texture, specular surgical tissue. Texture-less regions and specular highlights from wet tissue surfaces cause high matching ambiguity between the left and right images, which is well established in the stereo endoscopy literature. The architecture and calibration pipeline are correct; the limiting factor is the algorithm class, not the implementation.
 
-| Input (`/left/image`) | Disparity, default params | Disparity, tuned params |
-|---|---|---|
-| ![left image](stereo_pipeline/Images/left_image_topic.png) | ![default disparity](stereo_pipeline/Images/depth_map_default.png) | ![tuned disparity](stereo_pipeline/Images/depth_map_tuned.png) |
+**Live `/left/image` topic** — the `fake_camera` node publishing da Vinci Xi surgical footage, viewed via `rqt_image_view`:
+
+![left image topic](docs/images/left_image_topic.png)
+
+**Disparity, default SGBM parameters** (`blockSize=11`, everything else left at OpenCV defaults):
+
+![depth map, default params](docs/images/depth_map_default.png)
+
+**Disparity, tuned SGBM parameters** (`blockSize=5`, `uniquenessRatio=10`, `speckleWindowSize=100`, `speckleRange=2`, `disp12MaxDiff=1`, `MODE_SGBM_3WAY`):
+
+![depth map, tuned params](docs/images/depth_map_tuned.png)
 
 Tuning `uniquenessRatio`, `speckleWindowSize`, and `speckleRange` reduces speckle noise somewhat, but doesn't fix the underlying problem: on wet, texture-less tissue, block matching has too little signal to work with.
 
