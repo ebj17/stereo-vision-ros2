@@ -49,6 +49,17 @@ This project moves that pipeline into a real ROS2 node architecture and tests it
 
 > M. Hayoz and R. Allan, "StereoMIS," Zenodo, 2023. DOI: [10.5281/zenodo.8154924](https://doi.org/10.5281/zenodo.8154924)
 
+### Getting the data
+
+Download a sequence (e.g. `P1`) from the [StereoMIS Zenodo record](https://zenodo.org/records/8154924) and place its video and calibration file at:
+
+```
+~/stereo_ws/data/P1/video.mp4
+~/stereo_ws/data/P1/StereoCalibration.ini
+```
+
+These paths are currently hardcoded in `fake_camera.py` and `depth_node.py` rather than exposed as ROS2 parameters — swapping sequences means editing those paths directly. Making them configurable (e.g. via a launch file / ROS parameters) is a natural follow-up.
+
 ## Results
 
 The pipeline runs live at ~30 fps end to end: video replay → rectification → SGBM disparity → display. Calibration loading and rectification are correct — the rectified left/right images align properly.
