@@ -3,7 +3,6 @@
 ![ROS2](https://img.shields.io/badge/ROS2-Humble-blue)
 ![Python](https://img.shields.io/badge/Python-3.10-blue)
 ![OpenCV](https://img.shields.io/badge/OpenCV-4.x-green)
-![License](https://img.shields.io/badge/License-MIT-yellow)
 
 A ROS2 stereo vision pipeline built from scratch in Python, demonstrated on real da Vinci Xi surgical footage from the [StereoMIS](https://zenodo.org/records/8154924) dataset. Built as a personal portfolio project to develop hands-on expertise in stereo camera calibration, depth estimation, and ROS2 node architecture.
 
@@ -113,6 +112,3 @@ source ~/stereo_ws/install/setup.bash
 ros2 run stereo_pipeline fake_camera
 ```
 
-## License
-
-MIT — see [LICENSE](LICENSE).
