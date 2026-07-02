@@ -35,7 +35,7 @@ Three nodes in a single ROS2 package, `stereo_pipeline`:
 
 ## Background
 
-This pipeline builds on two earlier standalone OpenCV projects:
+This pipeline builds on two earlier personal projects where I worked through OpenCV's stereo vision documentation from scratch to get comfortable with camera calibration and stereo geometry:
 
 1. **Monocular camera calibration** — `findChessboardCorners`, `cornerSubPix`, `calibrateCamera`, `undistort`. Reprojection error: 0.26 (excellent).
 2. **Stereo calibration + disparity** — `stereoCalibrate`, `stereoRectify`, `StereoSGBM` on a checkerboard dataset, producing working rectified stereo images and disparity maps.
