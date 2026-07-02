@@ -23,7 +23,9 @@ setup(
         #'node_name = package_name.file_name:main'
         'console_scripts': [
         'fake_camera = stereo_pipeline.fake_camera:main',
+        'fake_camera_kitti = stereo_pipeline.fake_camera_kitti:main',
         'depth_node = stereo_pipeline.depth_node:main',
+        'depth_node_kitti = stereo_pipeline.depth_node_kitti:main',
         'calibration_node = stereo_pipeline.calibration_node:main',
         ],
     },

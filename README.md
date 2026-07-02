@@ -85,6 +85,71 @@ Tuning `uniquenessRatio`, `speckleWindowSize`, and `speckleRange` reduces speckl
 - No ground truth depth is available for quantitative evaluation on StereoMIS.
 - `fake_camera.py` replays pre-recorded video rather than subscribing to a live stereo camera.
 
+## KITTI Stereo 2012 Benchmark Results
+
+To isolate whether the poor depth quality on StereoMIS comes from the pipeline or from the dataset, the exact same pipeline was also run on the [KITTI Stereo 2012](https://www.cvlibs.net/datasets/kitti/eval_stereo_flow.php?benchmark=stereo) benchmark — outdoor driving footage captured from a car-mounted stereo rig.
+
+![KITTI left image and SGBM disparity map](docs/images/kitti_results.png)
+
+*Left: the left camera image from a KITTI driving scene. Right: the corresponding SGBM disparity map, JET colormap (warm colors = near, cool colors = far).*
+
+`depth_node_kitti.py` uses the *exact same* `StereoSGBM` pipeline as `depth_node.py` — same parameters (`blockSize=5`, `uniquenessRatio=10`, `speckleWindowSize=100`, `speckleRange=2`, `disp12MaxDiff=1`, `MODE_SGBM_3WAY`), same algorithm, same code path from grayscale conversion through `stereo.compute()`. The only difference is that KITTI images arrive pre-rectified, so the `cv2.remap` rectification step is skipped entirely.
+
+The result is a clean, dense, well-structured disparity map — a stark contrast to the noisy output on StereoMIS. This is the key evidence that the pipeline itself is architecturally sound: given a dataset with the right properties, unmodified SGBM produces good depth.
+
+**Why KITTI works well with classical SGBM:**
+- **Rich texture everywhere** — buildings, fences, road markings, vegetation. Block matching needs distinct pixel patterns to find correspondences, and outdoor driving scenes provide this in abundance.
+- **Good lighting** — natural outdoor sunlight, no specular highlights.
+- **Large baseline** — KITTI's stereo rig has a ~54 cm baseline, giving a strong disparity signal.
+- **Static, rigid scene geometry** — buildings and roads don't deform between the left and right captures.
+
+**Why StereoMIS (da Vinci surgical) performs poorly with the same algorithm:**
+- **Low-texture tissue** — smooth, wet tissue surfaces have very few distinct features for block matching to lock onto.
+- **Specular highlights** — wet tissue reflects the endoscope light, creating bright spots that shift unpredictably between the left and right views and confuse the matcher.
+- **Small baseline** — the da Vinci stereo endoscope has a very narrow baseline (~4.4 mm, from the `T_0` value in the calibration file), producing tiny disparity differences that are much harder to resolve than KITTI's ~54 cm baseline.
+- **Deformable scene** — tissue moves and deforms during surgery, unlike rigid outdoor scenes.
+
+This isn't just an implementation quirk — it holds at the state-of-the-art level too. On the [KITTI 2012 leaderboard](https://www.cvlibs.net/datasets/kitti/eval_stereo_flow.php?benchmark=stereo), OpenCV's SGBM (`OCV-SGBM`, entry #262) achieves a 7.64% error rate at the 3px threshold, while current learned methods like IGEV-Stereo and CREStereo achieve under 1.2% — on the *same easy, textured, rigid* driving scenes. Classical block matching is already well behind learned methods on friendly data; on low-texture, deformable, specular surgical footage, that gap becomes the difference between a noisy-but-usable depth map and one that isn't. This is consistent with why the StereoMIS authors themselves moved to a RAFT-based learned approach (see [Next steps](#next-steps)) rather than classical stereo.
+
+> A. Geiger, P. Lenz, and R. Urtasun, "Are we ready for Autonomous Driving? The KITTI Vision Benchmark Suite," CVPR 2012.
+
+```bibtex
+@inproceedings{Geiger2012CVPR,
+  author = {Andreas Geiger and Philip Lenz and Raquel Urtasun},
+  title = {Are we ready for Autonomous Driving? The KITTI Vision Benchmark Suite},
+  booktitle = {Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year = {2012}
+}
+```
+
+## Classical vs Learned Stereo Matching
+
+The KITTI results above show that the pipeline itself is sound — the question left open is whether a *better matching algorithm* on the *same* StereoMIS surgical footage would close the gap. To find out, [RAFT-Stereo](https://arxiv.org/abs/2109.07547) (Lipson et al., 2021) was run on the identical da Vinci P1 frame used for the SGBM results above, using the authors' pretrained weights.
+
+<table>
+<tr>
+<td align="center"><img src="docs/images/depth_map_tuned.png" width="400"/><br><sub><b>StereoSGBM (classical block matching)</b></sub></td>
+<td align="center"><img src="docs/images/raft_depth_map_comparison.png" width="400"/><br><sub><b>RAFT-Stereo (learned stereo matching, Lipson et al. 2021)</b></sub></td>
+</tr>
+</table>
+
+*Same frame, same StereoMIS P1 da Vinci surgical footage that produced the noisy SGBM result above — only the matching algorithm changed.*
+
+**What RAFT-Stereo is doing differently:** RAFT-Stereo is a deep learning stereo matching model that won Best Student Paper at 3DV 2021. Instead of matching raw pixel patches the way SGBM does, it uses a CNN to extract a learned feature descriptor for every pixel — a vector that encodes local texture, edges, and surrounding context, not just raw intensity. That's the key difference on tissue: two pixels on a uniform, texture-less surface can look identical in raw RGB but still get different feature vectors, because the network is encoding what's around them rather than just the pixel itself — directly addressing the ambiguity that breaks block matching. It then iteratively refines the disparity estimate with a recurrent unit (GRU), converging over 20+ iterations to a smooth, dense result instead of a single one-shot correlation lookup. No training was performed here — inference only, using the authors' pretrained `raftstereo-middlebury.pth` weights on an RTX 4060 Laptop GPU (~3.7s per frame).
+
+This comparison is the core result of the project: the ROS2 pipeline architecture, calibration, and rectification were never the problem. Running the exact same StereoMIS frame through a learned matcher instead of SGBM, with everything else in the pipeline untouched, produces a dramatically cleaner depth map. The limiting factor on surgical tissue was always the algorithm class, not the implementation.
+
+It also lines up with the state-of-the-art numbers cited above: on the [KITTI 2012 leaderboard](https://www.cvlibs.net/datasets/kitti/eval_stereo_flow.php?benchmark=stereo), OpenCV's SGBM (`OCV-SGBM`, entry #262) sits at 7.64% error, while learned methods including RAFT-Stereo and IGEV-Stereo are under 1.2% — nearly an order of magnitude better, even on KITTI's comparatively easy, well-textured driving scenes. On StereoMIS, where texture and lighting are working against the matcher instead of for it, that gap is exactly what's visible in the qualitative comparison above.
+
+```bibtex
+@inproceedings{lipson2021raft,
+  title={RAFT-Stereo: Multilevel Recurrent Field Transforms for Stereo Matching},
+  author={Lipson, Lahav and Teed, Zachary and Deng, Jia},
+  booktitle={International Conference on 3D Vision (3DV)},
+  year={2021}
+}
+```
+
 ## What I learned
 
 - OpenCV camera calibration pipeline from scratch (intrinsics, distortion, reprojection error)
